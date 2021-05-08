@@ -1,16 +1,60 @@
 <!doctype html>
 <html>
 <head>
-	<title>Tangram EPSI</title>
+	<title>Tangram</title>
+   <style>
+      * { font-family: Arial, Helvetica, sans-serif; }
+      #map { border: 1px solid #888; }
+      #dump { width:1024px;height:232px }
+   </style>
 </head>
 <body onload='init()'>
-	<canvas id='map' width='960px' height='720px' style='background-image:url("bg.png"); background-repeat:no-repeat;'>
-		
-	</canvas>
+	<p>
+      <input type='text' id='name' placeholder='???'>
+      <button onclick='save()'>&gt;&gt;</button>
+      <select id='list' onchange='load()'>
+         <option>---</option>
+      </select>
+   </p>
+   <canvas id='map' width='1024px' height='768px'></canvas>
+   <textarea id='dump'></textarea>
 </body>
    <script type="text/javascript" src="Box2dWeb-2.1.a.3.js"></script>
+   <script src="list.js"></script>
    <script type="text/javascript">
-      
+      var world = new Box2D.Dynamics.b2World(new Box2D.Common.Math.b2Vec2(0, 0), true);
+      var bodies = [];
+      var $name = document.getElementById('name');
+      var $list = document.getElementById('list');   
+      var $dump = document.getElementById('dump');
+
+      function save() {
+         let name = $name.value
+         let states = []
+
+         for(body of bodies) {
+            let pos = body.GetPosition()
+            states.push({ "pos": new Box2D.Common.Math.b2Vec2(pos.x, pos.y), "a": body.GetAngle() })
+         }
+         $list.innerHTML += `<option value='${ list.length }'>${ name }</option>`
+         list.push({ "name": name, "states": states })
+         $dump.innerText=JSON.stringify(list)
+      }
+
+      function load() {
+         try {
+            let id = parseInt($list.value)
+            let states = list[id].states
+            let len = Math.min(bodies.length, states.length)
+
+            world.ClearForces()
+            for(let i = 0; i<len; i++) {
+               bodies[i].SetPositionAndAngle(states[i].pos, states[i].a)               
+            }
+         }
+         catch { }
+      }
+
       //http://js-tut.aardon.de/js-tut/tutorial/position.html
       function getElementPosition(element) {
          var elem=element, tagname="", x=0, y=0;
@@ -28,7 +72,7 @@
          }
          return {x: x, y: y};
       }
-   	function init(){
+      function init(){
          var   b2Vec2 = Box2D.Common.Math.b2Vec2
             ,  b2AABB = Box2D.Collision.b2AABB
          	,	b2BodyDef = Box2D.Dynamics.b2BodyDef
@@ -46,7 +90,6 @@
             ;
 
       var map=document.getElementById("map");
-      var world = new b2World(new b2Vec2(0, 0), true);
       var moving=[];
       var scale = 30.0, 
           width =map.width /scale, 
@@ -82,11 +125,7 @@
       bodyFrame.CreateFixture(fixFrame);
 
       // Tangram
-		//var unit=239, unit_sqrt2=378, unit_div_sqrt2=169;
-		// var unit=338, unit_sqrt2=478, unit_div_sqrt2=239;
-		// var unit=478, unit_sqrt2=676, unit_div_sqrt2=338;
 		var unit=99/scale, unit_sqrt2=140/scale, unit_div_sqrt2=70/scale;
-		// var unit=140, unit_sqrt2=198, unit_div_sqrt2=99;
 		var offset=unit_sqrt2/2.784;
 		var vtx=[
 			new b2Vec2(0, 0),
@@ -109,7 +148,6 @@
 			{ coords:[vtx[3], vtx[6], vtx[7], vtx[5]]	, color:[0x9E/0xFF, 0x34/0xFF, 0x8B/0xFF] },
 			{ coords:[vtx[8], vtx[6], vtx[9]]			, color:[0x00/0xFF, 0xA5/0xFF, 0xCD/0xFF] }
 		];
-		var x0=0;
       var fixDef = new b2FixtureDef;
       var bodyDef = new b2BodyDef;
 
@@ -122,14 +160,14 @@
 		   fixDef.shape = new b2PolygonShape;
          fixDef.shape.color=data[i].color;
          fixDef.shape.SetAsArray(data[i].coords, data[i].coords.length);
-         bodyDef.position.x = x0+data[i].coords[0].x*.001;
+         bodyDef.position.x = data[i].coords[0].x*.001;
          bodyDef.position.y = data[i].coords[0].y*.001;
          bodyDef.linearDamping =dampingSleep;
          bodyDef.angularDamping=dampingSleep;
          var body=world.CreateBody(bodyDef);
          body.customColor=data[i].color;
          body.CreateFixture(fixDef);
-         x0=offset;
+         bodies.push(body);
       }
 		var debugDraw = new b2DebugDraw();
 		
@@ -140,6 +178,10 @@
 		debugDraw.SetFlags(b2DebugDraw.e_shapeBit );
 		world.SetDebugDraw(debugDraw);
       
+      for(i in list) {
+         $list.innerHTML+=`<option value='${i}'>${list[i].name}</option>`
+      }
+
       window.setInterval(update, 1000 / 25);
       
       var mouseX, mouseY, mousePVec, isMouseDown, selectedBody, mouseJoint;
@@ -158,8 +200,8 @@
       }, true);
 
       function handleMouseMove(e) {
-         mouseX = (e.clientX - canvasPosition.x) / scale;
-         mouseY = (e.clientY - canvasPosition.y) / scale;
+         mouseX = (e.clientX - canvasPosition.x + window.scrollX) / scale;
+         mouseY = (e.clientY - canvasPosition.y + window.scrollY) / scale;
       };
       
       function getBodyAtMouse() {
